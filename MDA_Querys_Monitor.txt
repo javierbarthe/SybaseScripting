@@ -1,0 +1,488 @@
+-- Para crear la tabla
+    select  getdate() as SampleTime,
+into monOpenObjectActivityHis
+            *    from master..monOpenObjectActivity 
+where 1 = 2
+
+-- Crear SP
+CREATE PROCEDURE dbo.monTablesActivity_collector
+AS
+BEGIN
+    insert into monOpenObjectActivityHis
+    select  getdate() as SampleTime,
+            *    from master..monOpenObjectActivity 
+END
+go
+-- Ejecutarlo cada 30 min
+exec dbo.monSysStatement_collector
+
+-- Reporte de actividad por tabla (poner las fechas de las capturas, en #t1 la mas antigua y en #t2 la mas reciente)
+select * into #t1  from monOpenObjectActivityHis where SampleTime = ''
+go
+select * into #t2  from monOpenObjectActivityHis where SampleTime = ''
+go
+select
+U.DBName,
+U.ObjectName,
+U.IndexID,
+(convert(integer,U.LogicalReads) - convert(integer,P.LogicalReads)) as T_LogicalReads,
+(convert(integer,U.PhysicalReads) - convert(integer,P.PhysicalReads)) as T_PhysicalReads,
+(convert(integer,U.APFReads) - convert(integer,P.APFReads)) as T_APFReads,
+(convert(integer,U.PagesWritten) - convert(integer,P.PagesWritten)) as T_PgWritten,
+(convert(integer,U.RowsInserted) - convert(integer,P.RowsInserted)) as T_RIns,
+(convert(integer,U.RowsDeleted) - convert(integer,P.RowsDeleted)) as T_RDel,
+(convert(integer,U.RowsUpdated) - convert(integer,P.RowsUpdated)) as T_RUpd,
+(convert(integer,U.Operations) - convert(integer,P.Operations)) as T_Operations,
+(convert(integer,U.LockRequests) - convert(integer,P.LockRequests)) as T_LockRequests,
+(convert(integer,isnull(U.LockWaits,0)) - convert(integer,isnull(P.LockWaits,0))) as T_LockWaits,
+((convert(integer,isnull(U.LockWaits,0)) - convert(integer,isnull(P.LockWaits,0)))* 100)/ (convert(integer,U.LockRequests) - convert(integer,P.LockRequests))
+from #t1 P
+inner join #t2 U on P.DBID = U.DBID and P.ObjectID = U.ObjectID and P.IndexID = U.IndexID
+where (convert(integer,isnull(U.LockWaits,0)) - convert(integer,isnull(P.LockWaits,0))) > 0
+order by 13 desc
+go
+
+-- Recolector de discos
+
+select getdate(),*
+into monIOQueueHis
+from master..monIOQueue
+where 1 = 2
+
+CREATE PROCEDURE dbo.monIOQueue_collector
+AS
+BEGIN
+	insert into monIOQueueHis
+	select getdate() as Fecha,*
+	from master..monIOQueue
+END
+go
+
+-- Reporte de latencia por disco > 5 ms
+select *
+into #tmp1
+from monIOQueueHis
+where Fecha = ''
+go
+select *
+into #tmp2
+from monIOQueueHis
+where Fecha = ''
+go
+select
+  a.IOType, a.LogicalName,
+ (b.IOTime-a.IOTime)/(b.IOs-a.IOs) as 'ms/IO'
+          from #tmp1 a, #tmp2 b
+          where
+             a.LogicalName = b.LogicalName
+             and a.IOType = b.IOType
+             and (b.IOs-a.IOs)>0
+             and (b.IOTime-a.IOTime)/(b.IOs-a.IOs) > 5
+order by 3 desc
+go
+
+
+--Procesos
+select 
+S.LogicalReads,
+Command= cast(P.Command as varchar (10)),
+SPID=cast (P.SPID as varchar (4)),S.LineNumber, 
+dbname= cast (S.DBName as varchar(15)) ,
+spname = cast(object_name(id,prc.dbid) as varchar (30)),
+Application= cast (P.Application as varchar (10)),USUARIO=cast (Login as varchar (10)),HOSTNAME=cast (hostname as varchar (10)),
+BlockingSPID,S.CpuTime, S.WaitTime, S.MemUsageKB, S.PhysicalReads, S.LogicalReads, S.RowsAffected, S.PacketsSent,
+S.NetworkPacketSize, S.StartTime, P.EngineNumber, WaitEventDesc=convert(varchar(20),'')
+from master.dbo.monProcessStatement S
+join master.dbo.monProcess P  on S.KPID = P.KPID
+join master..sysprocesses prc on S.KPID = prc.kpid
+where Login not in ('vm011624','td010391','aj408676')
+order by S.LogicalReads desc
+
+--Devices y Tablas
+drop table #t1
+go
+drop table #t2
+go
+drop table #tmp1
+go
+drop table #tmp2
+go
+select IOTime,IOs,IOType, LogicalName into #tmp1  
+from master..monIOQueue
+go
+select * into #t1  from
+master..monOpenObjectActivity
+go
+waitfor delay "00:05:00"
+go
+select * into #t2  from
+master..monOpenObjectActivity
+go
+select IOTime,IOs ,IOType, LogicalName into #tmp2
+from master..monIOQueue
+go
+select
+U.DBName,
+U.ObjectName,
+U.IndexID,
+(convert(integer,U.LogicalReads) - convert(integer,P.LogicalReads)) as T_LogicalReads,
+(convert(integer,U.PhysicalReads) - convert(integer,P.PhysicalReads)) as T_PhysicalReads,
+(convert(integer,U.APFReads) - convert(integer,P.APFReads)) as T_APFReads,
+(convert(integer,U.PagesWritten) - convert(integer,P.PagesWritten)) as T_PgWritten,
+(convert(integer,U.RowsInserted) - convert(integer,P.RowsInserted)) as T_RIns,
+(convert(integer,U.RowsDeleted) - convert(integer,P.RowsDeleted)) as T_RDel,
+(convert(integer,U.RowsUpdated) - convert(integer,P.RowsUpdated)) as T_RUpd,
+(convert(integer,U.Operations) - convert(integer,P.Operations)) as T_Operations,
+(convert(integer,U.LockRequests) - convert(integer,P.LockRequests)) as T_LockRequests,
+(convert(integer,isnull(U.LockWaits,0)) - convert(integer,isnull(P.LockWaits,0))) as T_LockWaits,
+((convert(integer,isnull(U.LockWaits,0)) - convert(integer,isnull(P.LockWaits,0)))* 100)/ (convert(integer,U.LockRequests) - convert(integer,P.LockRequests))
+from #t1 P
+inner join #t2 U on P.DBID = U.DBID and P.ObjectID = U.ObjectID and P.IndexID = U.IndexID
+where (convert(integer,isnull(U.LockWaits,0)) - convert(integer,isnull(P.LockWaits,0))) > 0
+order by 13 desc
+go
+ select
+  a.IOType, a.LogicalName,
+ (b.IOTime-a.IOTime)/(b.IOs-a.IOs) as 'ms/IO'
+          from #tmp1 a, #tmp2 b
+          where
+             a.LogicalName = b.LogicalName
+             and a.IOType = b.IOType
+             and (b.IOs-a.IOs)>0
+             and (b.IOTime-a.IOTime)/(b.IOs-a.IOs) > 5
+order by 3 desc
+go
+
+--SPs en una franja de tiempo
+Select
+Base,
+SP,
+LineNumber,
+sum(convert(numeric(38,0),LogicalReads)) as Lecturas_Logicas,
+sum(PhysicalReads) as Lecturas_Fisicas,
+sum(CpuTime) as CPU,
+sum(WaitTime) as Wait,
+sum(MemUsageKB) as Memoria,
+sum(PagesModified) as Paginas_Modificadas,
+sum(PacketsSent) as Paquetes_Enviados,
+sum(PacketsReceived) as Paquetes_Recibidos,
+sum(PlansAltered) as Planes_Cambiados,
+sum(RowsAffected) as Filas_Afectadas,
+count(*) as Ejecuciones,
+convert(numeric(38,0),sum(convert(numeric(38,0),LogicalReads))/count(*)) as Promedio
+from monitoreo..monSysStatement_dba
+where StartTime >= '2019-03-06 12:00:00'
+and StartTime <= '2019-03-06 14:50:00'
+group by convert(varchar,StartTime,103),
+Base,
+SP,LineNumber
+order by 4 desc
+
+
+create table monSysStatement_dba (
+
+                Base                            varchar(30)                          null,
+
+                SP                              varchar(255)                         null,
+
+                Usuario                         varchar(30)                          null,
+
+                hostname                        varchar(30)                          null,
+
+                program_name                    varchar(30)                          null,
+
+                SPID                            int                              not null,
+
+                KPID                            int                              not null,
+
+                DBID                            int                              not null,
+
+                ProcedureID                     int                              not null,
+
+                PlanID                          int                              not null,
+
+                BatchID                         int                              not null,
+
+                ContextID                       int                              not null,
+
+                LineNumber                      int                              not null,
+
+                CpuTime                         int                              not null,
+
+                WaitTime                        int                              not null,
+
+                MemUsageKB                      int                              not null,
+
+                PhysicalReads                   int                              not null,
+
+                LogicalReads                    int                              not null,
+
+                PagesModified                   int                              not null,
+
+                PacketsSent                     int                              not null,
+
+                PacketsReceived                 int                              not null,
+
+                NetworkPacketSize               int                              not null,
+
+                PlansAltered                    int                              not null,
+
+                RowsAffected                    int                              not null,
+
+                ErrorStatus                     int                              not null,
+
+                StartTime                       datetime                             null,
+
+                EndTime                         datetime                             null
+
+)
+
+go
+
+CREATE PROCEDURE dbo.monSysStatement_collector
+
+AS
+
+BEGIN
+
+    declare @ciclos            integer
+
+    declare @p_logicalread integer
+
+    declare @fecha datetime
+
+   
+
+    set  @p_logicalread = 5000
+
+    set @fecha = getdate()
+
+   
+
+    set @ciclos =  (((23 - datepart(hh, @fecha))*60)/5)
+
+ 
+
+    while (@ciclos>0)
+
+    begin
+
+         insert into monSysStatement_dba
+
+         select    
+
+            DB_NAME(master..monSysStatement.DBID) as Base,
+
+            OBJECT_NAME(ProcedureID,master..monSysStatement.DBID) as SP,
+
+            SUSER_NAME(sp.suid) as Usuario,
+
+            sp.hostname,
+
+            sp.program_name,
+
+            master..monSysStatement.SPID,
+
+            master..monSysStatement.KPID,
+
+            master..monSysStatement.DBID,
+
+            master..monSysStatement.ProcedureID,
+
+            master..monSysStatement.PlanID,
+
+            master..monSysStatement.BatchID,
+
+            master..monSysStatement.ContextID,
+
+            master..monSysStatement.LineNumber,
+
+            master..monSysStatement.CpuTime,
+
+            master..monSysStatement.WaitTime,
+
+            master..monSysStatement.MemUsageKB,
+
+            master..monSysStatement.PhysicalReads,
+
+            master..monSysStatement.LogicalReads,
+
+            master..monSysStatement.PagesModified,
+
+            master..monSysStatement.PacketsSent,
+
+            master..monSysStatement.PacketsReceived,
+
+            master..monSysStatement.NetworkPacketSize,
+
+            master..monSysStatement.PlansAltered,
+
+            master..monSysStatement.RowsAffected,
+
+            master..monSysStatement.ErrorStatus,
+
+            master..monSysStatement.StartTime,
+
+            master..monSysStatement.EndTime
+
+            from master..monSysStatement, master..sysprocesses sp
+
+            where (master..monSysStatement.LogicalReads > @p_logicalread -- 5000
+
+                  or master..monSysStatement.WaitTime > 0
+
+                  or master..monSysStatement.PhysicalReads > 100   
+
+                  or master..monSysStatement.CpuTime > 1000  ) and
+
+                  master..monSysStatement.SPID *= sp.spid and
+
+                  master..monSysStatement.KPID *= sp.kpid
+
+            and DB_NAME(master..monSysStatement.DBID) not in ('sybsystemprocs')
+
+         
+
+        select @ciclos= @ciclos-1
+
+ 
+
+        waitfor delay "00:05:00"
+
+    end
+
+END
+
+go
+
+
+Select
+
+Base,
+
+SP,
+
+LineNumber,
+
+sum(convert(numeric(38,0),LogicalReads)) as Lecturas_Logicas,
+
+sum(PhysicalReads) as Lecturas_Fisicas,
+
+sum(CpuTime) as CPU,
+
+sum(WaitTime) as Wait,
+
+sum(MemUsageKB) as Memoria,
+
+sum(PagesModified) as Paginas_Modificadas,
+
+sum(PacketsSent) as Paquetes_Enviados,
+
+sum(PacketsReceived) as Paquetes_Recibidos,
+
+sum(PlansAltered) as Planes_Cambiados,
+
+sum(RowsAffected) as Filas_Afectadas,
+
+count(*) as Ejecuciones,
+
+convert(numeric(38,0),sum(convert(numeric(38,0),LogicalReads))/count(*)) as Promedio
+
+from monsysstatement_dba
+
+group by convert(varchar,StartTime,103),
+
+Base,
+
+SP,LineNumber
+
+order by 4 desc
+
+select * into #tmp1 from master..monSysWaits
+
+waitfor delay '00:01:00'
+
+select * into #tmp2 from master..monSysWaits
+
+ 
+
+select b.WaitEventID,(b.WaitTime - a.WaitTime),(b.Waits - a.Waits),(b.WaitTime - a.WaitTime)/(b.Waits - a.Waits)
+
+from #tmp1 a, #tmp2 b
+
+where a.WaitEventID = b.WaitEventID
+
+group by b.WaitEventID
+
+
+use mon_db
+go
+CREATE PROCEDURE dbo.monSpinlockActivity_collector
+AS
+BEGIN
+    insert into monSpinlockActivityHis
+    select  getdate() as SampleTime,
+            *    
+    from master..monSpinlockActivity
+END
+go
+exec dbo.monSpinlockActivity_collector
+
+
+insert into #tmp1
+select 
+db_name(ObjectDBID) as ObjectDB,  
+db_name(HeldProcDBID) as HeldProcDB, 
+object_name(HeldProcedureID,HeldProcDBID) as HeldProc, 
+*
+from master..monDeadLock
+
+select *
+into #tmp7
+from mon_db..monSpinlockActivityHis
+where SampleTime = (select max(SampleTime) from mon_db..monSpinlockActivityHis)
+
+select *
+into #tmp6
+from mon_db..monSpinlockActivityHis
+where SampleTime = (select min(SampleTime) from mon_db..monSpinlockActivityHis where SampleTime > '2017-04-27 15:37:27.67')
+
+
+select 
+	(b.Grabs-a.Grabs) as TotGrabs, (b.Spins-a.Spins) as TotSpins, (b.Waits-a.Waits) as TotWaits, (b.Contention-a.Contention) as Contention, a.SpinlockName,a.SpinlockSlotID
+from #tmp6 a inner join #tmp7 b on a.SpinlockSlotID = b.SpinlockSlotID and a.SpinlockName = b.SpinlockName
+order by 3 desc
+
+
+CREATE PROCEDURE dbo.monSysWaits_collector
+AS
+BEGIN
+        insert into monSysWaitsHis
+        select getdate() as SampleTime,
+               w.Waits, w.WaitTime, w.WaitEventID, i.Description
+--        into mon_db..monSysWaitsHis
+        from master..monSysWaits w, master..monWaitEventInfo i
+        where w.WaitEventID = i.WaitEventID
+END
+go
+
+
+select *
+into #tmp7
+from mon_db..monSysWaitsHis
+where SampleTime = (select max(SampleTime) from mon_db..monSysWaitsHis)
+
+select *
+into #tmp6
+from mon_db..monSysWaitsHis
+where SampleTime = (select min(SampleTime) from mon_db..monSysWaitsHis where SampleTime > '2017-05-02 15:20:27.67')
+
+select 
+(b.Waits - a.Waits) as TotWaits,
+(b.WaitTime - a.WaitTime) as TotWaitTime,
+a.Description,
+a.WaitEventID,
+(b.WaitTime - a.WaitTime)/(b.Waits - a.Waits) as TotTimexWait
+from #tmp6 a inner join #tmp7 b on a.WaitEventID = b.WaitEventID
+where (b.Waits - a.Waits) > 0
+order by 5 desc
