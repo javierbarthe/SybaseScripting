@@ -1,0 +1,15 @@
+CREATE PROC sp_threshold_default_2 
+
+     @dbname varchar(30),  
+
+     @segmentname varchar(30),  
+
+     @free_space int,  
+
+     @status int  as  
+
+begin  
+
+	print "Warning 2GB, not enough space in '%1!' segment - DB: '%2!'", @segmentname, @dbname 
+
+end

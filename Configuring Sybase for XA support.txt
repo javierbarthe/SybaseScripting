@@ -1,0 +1,25 @@
+http://wikis.openlinksw.com/UdaWikiWeb/SybaseConfigXASupport?command=plain-html
+
+Configuring Sybase for XA support
+XA support has been tested against Sybase version 12.5.1 and above.
+
+The following instructions need to performed to set up a working XA environment on your database server:
+
+Ensure your Sybase Server is licensed for Distributed Transaction Management. This can be checked by executing the following query against you Sybase Server:
+
+select license_enabled('ASE_DTM') 
+
+The query will return "1", if you have the ASE_DTM license installed.
+
+Run "sp_configure 'enable DTM',1" , via isql to enable transactions. 
+Run "sp_configure 'enable xact coordination',1" , via isql 
+Run "grant role dtm_tm_role to USER_NAME" . 
+To prevent deadlocks when running transactions, enable row level lock by default, by running "sp_configure 'lock scheme',0,datarows" via isql.
+Note, you must restart Adaptive Server for this changes to take effect.
+
+Setting the Timeout for Detached Transactions
+On the Sybase server, you can set the dtm detach timeout period, which sets the amount of time (in minutes) that a distributed transaction branch can remain in the detached state (without an associated execution thread). After this period, the DBMS automatically rolls back the transaction. The dtm detach timeout period applies to all transactions on the database server. It cannot be set for each transaction. For example, to automatically rollback transactions after being detached for 10 minutes, use the following command:
+
+"sp_configure 'dtm detach timeout period', 10"
+
+You should set the dtm detach timeout period higher than the transaction timeout to prevent the database server from rolling back the transaction before the transaction times out. 

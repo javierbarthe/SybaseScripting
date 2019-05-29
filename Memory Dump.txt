@@ -1,0 +1,142 @@
+-----------------------------------------------------------------
+Memory Dump
+-----------------------------------------------------------------
+
+Contenido
+-----------------------------------------------------------------
+1 Instructivo
+2 Ejemplo Habilitar
+3 Ejemplo Deshabilitar
+4 Informacion online
+
+Instructivo
+-----------------------------------------------------------------
+Description
+
+Specifies the dump condition of a shared memory dump, and displays current settings. You must enable the dump on conditions configuration parameter to perform shared memory dumps.
+
+Syntax
+
+sp_shmdumpconfig "action", type, value, max_dumps, dump_dir,
+	dump_file, option1, option2, option3, option4, option5
+Parameters
+
+“action”
+Action requested. One of:
+
+add – adds the specified shared memory dump conditions.
+
+drop – drops the specified shared memory dump conditions.
+
+update – changes the settings for an existing memory dump condition.
+
+reset – resets the dump count for a shared memory dump condition.
+
+display – dispalys the current shared memory dump conditions.
+
+config – one of:
+
+include errorlog – determines if the errorlog file is included in the dump file:
+
+0 – do not inlude the error log in the dump file.
+
+1 – include the errorlog in the dump file.
+
+merge files – determines if the dump files are merged after a parallel dump:
+
+0 – do not merge dump files.
+
+1 – merge the dump files.
+
+type value
+error – generates a dump file for the specified server error number (for example, error numbers 1105 or 813).
+
+signal – generates a dump file when the specified operating system signal occurs (for example, signals 11 or 10).
+
+severity – generates a dump file when an error occurs with a severity equal to or greater than the specified severity (see Chapter 12, “Diagnosing System Problems,” in the System Administration Guide Volume 1 for a discussion of error severity levels).
+
+module – generates a dump file for a range of server error numbers. The range is delimited by multiples of 100, for example 800 or 1200.
+
+defaults
+
+timeslice – generates a dump file when a process receives a timeslice error.
+
+panic – generates a dump file when a server panic occurs. A server panic terminates Adaptive Server after perfoming the shared memory dump.
+
+message – generates a dump file when a specified error log message occurs. Contact Sybase Technical Support to optain specific error message numbers.
+
+dbcc –
+
+codepoint –
+
+debug –
+
+max_dumps
+maximum number of dumps generated for a dump condition. The dump count is reset each time you restart the server. You can also reset the dump count with the reset action parameter.
+
+dump_dir
+is the directory in which Adaptive Server creates the dump file. The “sybase” user must have read and write permission in this directory.
+
+Sybase recommends that you set the dump_dir to a known, consistent location. Make sure there is sufficient space in this directory to hold the required number of dump files. Remove a dump_dir setting by performing an update action with two double quotes ("") as the dump_dir value:
+
+sp_shmdumpconfig 'update', signal, 11, null, null, ""
+dump_file
+File name for the dump. If you do not supply a file name, Adaptive Server creates a name that is guaranteed to be unique. If you provide a file name, all files for the affected conditions use this name, and existing files are overwritten.
+
+option1, . . . , option5
+determine whether areas of Adaptive Server memory are included in the dump file (by default, the procedure cache is included). One of:
+
+include_page – include all pages from data caches.
+
+omit_page – omit all pages from data caches.
+
+default_page – use the default value when including data cache pages.
+
+include_proc – include all pages from the procedure cache.
+
+omit_proc – omit all pages from the procedure cache.
+
+default_proc – use the default values for the procedure cache.
+
+include_unused – include unused pages.
+
+omit_unused – omit unused pages.
+
+default_unused – use the default value for unused pages.
+
+Values for these options override the system-wide default settings. Specify default_cache, default_proc, or default_unused to inherit the appropriate value from the system-wide default settings.
+
+NoteUnless you are instructed otherwise by Sybase Technical Support, Sybase recommends that you include the procedure cache in all shared memory dumps.
+
+halt
+determines if Adaptive Server halts the engine while writing the dump file. One of:
+
+no_halt – no engines halted during the dump. Use this option if you do not want to use shared memory dumps (for example, because the downtime is unacceptable or because the event triggering the shared memory dump is based on a synchronization problem, and you need to see what other engines are doing).
+
+Memory dumps made with the no_halt option may contain a “fuzzy” image and the dump file will likely contain corrupted lock tables, run queues, and so on.
+
+default_halt –
+
+halt –
+
+
+Ejemplo Habilitar
+-----------------------------------------------------------------
+
+sp_configure 'dump on conditions',1
+sp_configure 'number of dump threads', 8
+sp_shmdumpconfig 'add', error, 8201,1, '/backup/HIST/', 'MemDump8201.log', include_proc, include_page
+
+
+Ejemplo Deshabilitar
+-----------------------------------------------------------------
+
+sp_configure 'dump on conditions',0
+sp_configure 'number of dump threads', 1
+sp_shmdumpconfig 'drop', error, 8201
+
+
+Informacion online
+-----------------------------------------------------------------
+
+http://infocenter.sybase.com/help/index.jsp?topic=/com.sybase.infocenter.dc36273.1572/html/sprocs/BEIGIFCI.htm
